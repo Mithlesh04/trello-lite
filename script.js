@@ -14,12 +14,32 @@ function getInitialData() {
     };
 }
 
+// Validate data structure
+function isValidData(data) {
+    return data &&
+           typeof data === 'object' &&
+           Array.isArray(data.boards) &&
+           typeof data.nextBoardId === 'number' &&
+           typeof data.nextListId === 'number' &&
+           typeof data.nextCardId === 'number';
+}
+
+// Safely parse integer, returns null if invalid
+function safeParseInt(value) {
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
 // Load data from localStorage
 function loadData() {
     try {
         const data = localStorage.getItem(STORAGE_KEY);
         if (data) {
-            return JSON.parse(data);
+            const parsed = JSON.parse(data);
+            if (isValidData(parsed)) {
+                return parsed;
+            }
+            console.warn('Invalid data structure in localStorage, using default');
         }
     } catch (error) {
         console.error('Error loading data from localStorage:', error);
@@ -211,8 +231,10 @@ function renderBoards() {
     // Add click handlers
     container.querySelectorAll('.board-card').forEach(card => {
         card.addEventListener('click', () => {
-            const boardId = parseInt(card.dataset.boardId);
-            openBoard(boardId);
+            const boardId = safeParseInt(card.dataset.boardId);
+            if (boardId !== null) {
+                openBoard(boardId);
+            }
         });
     });
 }
@@ -314,8 +336,10 @@ function setupListEventListeners() {
     document.querySelectorAll('.list-menu-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const listId = parseInt(btn.dataset.listId);
-            toggleListDropdown(listId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (listId !== null) {
+                toggleListDropdown(listId);
+            }
         });
     });
     
@@ -323,8 +347,10 @@ function setupListEventListeners() {
     document.querySelectorAll('.edit-list-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const listId = parseInt(btn.dataset.listId);
-            startEditList(listId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (listId !== null) {
+                startEditList(listId);
+            }
         });
     });
     
@@ -332,7 +358,8 @@ function setupListEventListeners() {
     document.querySelectorAll('.delete-list-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const listId = parseInt(btn.dataset.listId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (listId === null) return;
             const board = findBoard(currentBoardId);
             const list = findList(board, listId);
             if (list) {
@@ -349,16 +376,20 @@ function setupListEventListeners() {
     // Add card buttons
     document.querySelectorAll('.add-card-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const listId = parseInt(btn.dataset.listId);
-            openCardModal(listId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (listId !== null) {
+                openCardModal(listId);
+            }
         });
     });
     
     // List title editing
     document.querySelectorAll('.list-title').forEach(title => {
         title.addEventListener('dblclick', () => {
-            const listId = parseInt(title.dataset.listId);
-            startInlineEditList(title, listId);
+            const listId = safeParseInt(title.dataset.listId);
+            if (listId !== null) {
+                startInlineEditList(title, listId);
+            }
         });
     });
     
@@ -366,17 +397,20 @@ function setupListEventListeners() {
     document.querySelectorAll('.edit-card-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const cardId = parseInt(btn.dataset.cardId);
-            const listId = parseInt(btn.dataset.listId);
-            openCardModal(listId, cardId);
+            const cardId = safeParseInt(btn.dataset.cardId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (cardId !== null && listId !== null) {
+                openCardModal(listId, cardId);
+            }
         });
     });
     
     document.querySelectorAll('.delete-card-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const cardId = parseInt(btn.dataset.cardId);
-            const listId = parseInt(btn.dataset.listId);
+            const cardId = safeParseInt(btn.dataset.cardId);
+            const listId = safeParseInt(btn.dataset.listId);
+            if (cardId === null || listId === null) return;
             const board = findBoard(currentBoardId);
             const list = findList(board, listId);
             const card = findCard(list, cardId);
@@ -572,10 +606,14 @@ function setupDragAndDrop() {
 }
 
 function handleDragStart(e) {
+    const cardId = safeParseInt(this.dataset.cardId);
+    const sourceListId = safeParseInt(this.dataset.listId);
+    if (cardId === null || sourceListId === null) return;
+    
     draggedCard = this;
     draggedCardData = {
-        cardId: parseInt(this.dataset.cardId),
-        sourceListId: parseInt(this.dataset.listId)
+        cardId: cardId,
+        sourceListId: sourceListId
     };
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -645,14 +683,17 @@ function handleDrop(e) {
     
     if (!draggedCardData) return;
     
-    const targetListId = parseInt(this.dataset.listId);
+    const targetListId = safeParseInt(this.dataset.listId);
+    if (targetListId === null) return;
+    
     const afterElement = getDragAfterElement(this, e.clientY);
+    const beforeCardId = afterElement ? safeParseInt(afterElement.dataset.cardId) : null;
     
     moveCard(
         draggedCardData.sourceListId,
         targetListId,
         draggedCardData.cardId,
-        afterElement ? parseInt(afterElement.dataset.cardId) : null
+        beforeCardId
     );
 }
 
